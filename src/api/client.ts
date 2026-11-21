@@ -1,6 +1,7 @@
 /** Typed fetch helpers for the GoldSight API. */
 import type {
   AppSettings,
+  AuthUser,
   BacktestResult,
   CalendarEvent,
   CalendarResponse,
@@ -18,6 +19,7 @@ import type {
   SignalStats,
   StatsResults,
 } from '../types';
+import { apiUrl } from '../config';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -27,17 +29,33 @@ export class ApiError extends Error {
   }
 }
 
+export function csrfToken(): string {
+  return document.cookie.split('; ')
+    .find((row) => row.startsWith('gs_csrf='))
+    ?.split('=')[1] ?? '';
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const headers = new Headers(init?.headers ?? {});
+  headers.set('Content-Type', 'application/json');
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    headers.set('X-CSRF-Token', csrfToken());
+  }
   let res: Response;
   try {
-    res = await fetch(path, {
-      headers: { 'Content-Type': 'application/json' },
+    res = await fetch(apiUrl(path), {
+      credentials: 'include',
       ...init,
+      headers,
     });
-  } catch (err) {
-    throw new ApiError(0, `Cannot reach GoldSight backend: ${String(err)}`);
+  } catch {
+    throw new ApiError(0, 'Server is waking up, please wait...');
   }
   if (!res.ok) {
+    if ([502, 503, 504].includes(res.status)) {
+      throw new ApiError(res.status, 'Server is waking up, please wait...');
+    }
     let detail = res.statusText;
     try {
       const body = (await res.json()) as { detail?: string };
@@ -80,6 +98,19 @@ export interface AlertSettings {
 export interface AlertTestResult {
   sent: boolean;
   results: { telegram: string; email: string };
+}
+
+export interface TelegramConnection {
+  connected: boolean;
+  chat_id: number | null;
+  language: string;
+  is_active: boolean;
+}
+
+export interface TelegramLinkCode {
+  code: string;
+  deep_link: string;
+  expires_in: number;
 }
 
 export const api = {
@@ -157,6 +188,32 @@ export const api = {
 
   settings: () => request<AppSettings>('/api/settings'),
 
+  authCsrf: () => fetch(apiUrl('/api/auth/csrf'), { credentials: 'include' }),
+  me: () => request<{ user: AuthUser }>('/api/auth/me'),
+  login: (body: { email: string; password: string; totp?: string }) =>
+    request<{ user: AuthUser }>('/api/auth/login', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+  signup: (body: { email: string; username: string; password: string }) =>
+    request<{ user: AuthUser }>('/api/auth/signup', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+  logout: () => request<{ status: string }>('/api/auth/logout', { method: 'POST' }),
+  logoutAll: () => request<{ status: string }>('/api/auth/logout-all', { method: 'POST' }),
+  refresh: () => request<{ status: string }>('/api/auth/refresh', { method: 'POST' }),
+  changePassword: (body: { current_password: string; new_password: string }) =>
+    request<{ status: string }>('/api/auth/password', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+  totpSetup: () => request<{ secret: string; uri: string }>('/api/auth/2fa/setup', { method: 'POST' }),
+  totpEnable: (code: string) => request<{ status: string }>('/api/auth/2fa/enable', {
+    method: 'POST', body: JSON.stringify({ code }),
+  }),
+  totpDisable: (code: string, password: string) =>
+    request<{ status: string }>('/api/auth/2fa/disable', {
+      method: 'POST', body: JSON.stringify({ code, password }),
+    }),
+
   alertsSettings: () => request<AlertSettings>('/api/alerts/settings'),
 
   saveAlertsSettings: (payload: AlertSettings) =>
@@ -169,6 +226,19 @@ export const api = {
 
   testAlerts: () =>
     request<AlertTestResult>('/api/alerts/test', { method: 'POST' }),
+
+  telegramConnection: () => request<TelegramConnection>('/api/telegram/connection'),
+  telegramLinkCode: () =>
+    request<TelegramLinkCode>('/api/telegram/link-code', { method: 'POST' }),
+  telegramTest: () => request<{ sent: boolean }>('/api/telegram/test', { method: 'POST' }),
+  saveTelegramSettings: (payload: {
+    min_grade?: string;
+    language?: string;
+    timeframes?: string[];
+    is_active?: boolean;
+  }) => request<{ status: string }>('/api/telegram/settings', {
+    method: 'POST', body: JSON.stringify(payload),
+  }),
 
   positionSize: (body: {
     account_size: number;
@@ -213,12 +283,22 @@ export async function streamChat(
   onDelta: (chunk: string) => void,
   onMeta?: (meta: ChatMeta) => void,
 ): Promise<void> {
-  const res = await fetch('/api/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, history }),
-  });
+  void history;
+  let res: Response;
+  try {
+    res = await fetch(apiUrl('/api/chat'), {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken() },
+      body: JSON.stringify({ message }),
+    });
+  } catch {
+    throw new ApiError(0, 'Server is waking up, please wait...');
+  }
   if (!res.ok || !res.body) {
+    if ([502, 503, 504].includes(res.status)) {
+      throw new ApiError(res.status, 'Server is waking up, please wait...');
+    }
     let detail = res.statusText;
     try {
       const body = (await res.json()) as { detail?: string };
@@ -294,7 +374,7 @@ export function streamAlerts(
   onAlert: (alert: Alert) => void,
   onStatus?: (connected: boolean) => void,
 ): () => void {
-  const source = new EventSource('/api/alerts/stream');
+  const source = new EventSource(apiUrl('/api/alerts/stream'), { withCredentials: true });
 
   const handleOpen = () => onStatus?.(true);
   const handleError = () => onStatus?.(false);

@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react';
 import type { ReactNode } from 'react';
+import { WS_BASE } from '../config';
 
 export type LiveState = 'connecting' | 'live' | 'reconnecting' | 'stale';
 
@@ -40,8 +41,7 @@ const IMMEDIATE_TYPES = new Set(['signal', 'signal_result', 'candle_close', 'sta
 const HIDDEN_CRITICAL_TYPES = new Set(['status', 'signal', 'signal_result', 'resync', 'subscribed']);
 
 function streamUrl(): string {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${proto}://${location.host}/ws/stream`;
+  return `${WS_BASE}/ws/stream`;
 }
 
 const LiveStreamContext = createContext<LiveStreamValue | null>(null);

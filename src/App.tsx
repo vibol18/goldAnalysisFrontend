@@ -5,12 +5,14 @@ import Disclaimer from './components/Disclaimer';
 import StatusBadge from './components/StatusBadge';
 import { AlertsProvider } from './components/AlertsProvider';
 import { LiveStreamProvider } from './lib/liveStream';
+import { AuthProvider, useAuth } from './lib/auth';
 
 const SignalsHistory = lazy(() => import('./pages/SignalsHistory'));
 const Debug = lazy(() => import('./pages/Debug'));
 const Backtest = lazy(() => import('./pages/Backtest'));
 const Stats = lazy(() => import('./pages/Stats'));
 const CalendarPage = lazy(() => import('./pages/Calendar'));
+const Login = lazy(() => import('./pages/Login'));
 const Chat = lazy(() => import('./pages/Chat'));
 const Learn = lazy(() => import('./pages/Learn'));
 const Settings = lazy(() => import('./pages/Settings'));
@@ -28,7 +30,8 @@ const navItems = [
 ];
 const PAGE_PATHS = new Set(navItems.map((item) => item.to));
 
-export default function App() {
+function AppShell() {
+  const { user, loading, serverWaking, logout } = useAuth();
   const location = useLocation();
   const path = PAGE_PATHS.has(location.pathname) ? location.pathname : '/';
   const [visited, setVisited] = useState<string[]>([path]);
@@ -44,10 +47,42 @@ export default function App() {
       </div>
     ) : null;
 
+  if (loading) {
+    return (
+      <div className="card m-8 text-center text-sm text-slate-400">
+        {serverWaking ? 'Server is waking up, please wait...' : 'Loading…'}
+      </div>
+    );
+  }
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        {serverWaking && (
+          <div role="status" className="bg-amber-500/10 px-4 py-2 text-center text-sm text-amber-200">
+            Server is waking up, please wait...
+          </div>
+        )}
+        <main className="flex-1">
+          <Suspense fallback={<div className="card m-8 text-center">Loading…</div>}>
+            <Login />
+          </Suspense>
+        </main>
+        <footer className="border-t border-white/5 py-3">
+          <Disclaimer className="mx-auto max-w-7xl px-4 text-center" />
+        </footer>
+      </div>
+    );
+  }
+
   return (
     <LiveStreamProvider>
       <AlertsProvider>
         <div className="min-h-screen flex flex-col">
+          {serverWaking && (
+            <div role="status" className="bg-amber-500/10 px-4 py-2 text-center text-sm text-amber-200">
+              Server is waking up, please wait...
+            </div>
+          )}
           <header className="sticky top-0 z-40 border-b border-white/5 bg-[#0b0d12]/95 backdrop-blur">
             <div className="mx-auto max-w-7xl px-4 h-14 flex items-center justify-between gap-4">
               <div className="flex items-center gap-2 shrink-0">
@@ -58,6 +93,11 @@ export default function App() {
                 </span>
               </div>
               <div className="flex items-center gap-3">
+                <span className="hidden lg:inline text-[10px] text-slate-500 truncate max-w-32" title={user.email}>
+                  {user.username}
+                </span>
+                <button className="btn-ghost !py-1 !px-2 text-xs" type="button"
+                        onClick={() => void logout()} title="Sign out">Sign out</button>
                 <StatusBadge />
                 <nav className="flex items-center gap-1 overflow-x-auto">
                   {navItems.map((item) => (
@@ -102,5 +142,13 @@ export default function App() {
         </div>
       </AlertsProvider>
     </LiveStreamProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppShell />
+    </AuthProvider>
   );
 }

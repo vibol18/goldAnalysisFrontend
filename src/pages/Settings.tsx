@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { api } from '../api/client';
-import type { AlertSettings } from '../api/client';
+import { api, csrfToken } from '../api/client';
+import { apiUrl } from '../config';
+import type { AlertSettings, TelegramConnection, TelegramLinkCode } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
 import Disclaimer from '../components/Disclaimer';
 import { DEFAULT_ALERT_SETTINGS, useAlerts } from '../components/AlertsProvider';
@@ -24,9 +25,54 @@ export default function Settings() {
   >(null);
   const [testing, setTesting] = useState(false);
 
+  const [tgConn, setTgConn] = useState<TelegramConnection | null>(null);
+  const [tgLink, setTgLink] = useState<TelegramLinkCode | null>(null);
+  const [tgGrade, setTgGrade] = useState('A');
+  const [tgLang, setTgLang] = useState('en');
+  const [tgTimeframes, setTgTimeframes] = useState<string[]>(['15m', '1h', '4h']);
+  const [tgMsg, setTgMsg] = useState<string | null>(null);
+
   useEffect(() => {
     if (settings) setDraft(settings);
   }, [settings]);
+
+  useEffect(() => {
+    api.telegramConnection().then((conn) => {
+      setTgConn(conn);
+      if (conn.connected) {
+        setTgLang(conn.language);
+      }
+    }).catch(() => setTgConn(null));
+  }, []);
+
+  const connectTelegram = async () => {
+    try {
+      setTgLink(await api.telegramLinkCode());
+      setTgMsg(null);
+    } catch (e) {
+      setTgMsg(e instanceof Error ? e.message : 'Could not create a link code');
+    }
+  };
+
+  const saveTelegram = async () => {
+    try {
+      await api.saveTelegramSettings({
+        min_grade: tgGrade, language: tgLang, timeframes: tgTimeframes,
+      });
+      setTgMsg('Telegram settings saved.');
+    } catch (e) {
+      setTgMsg(e instanceof Error ? e.message : 'Could not save Telegram settings');
+    }
+  };
+
+  const testTelegram = async () => {
+    try {
+      await api.telegramTest();
+      setTgMsg('Test message sent to Telegram.');
+    } catch (e) {
+      setTgMsg(e instanceof Error ? e.message : 'Could not send test message');
+    }
+  };
 
   const toggleTimeframe = (tf: string) => {
     setDraft((d) => ({
@@ -84,7 +130,11 @@ export default function Settings() {
     setRefreshing(true);
     setMsg(null);
     try {
-      const res = await fetch('/api/market/refresh', { method: 'POST' });
+      const res = await fetch(apiUrl('/api/market/refresh'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'X-CSRF-Token': csrfToken() },
+      });
       if (!res.ok) throw new Error(`refresh failed (${res.status})`);
       setMsg('Market data cache cleared — fresh data will be fetched on next request.');
       await reload();
@@ -333,6 +383,96 @@ export default function Settings() {
             </ul>
           )}
         </div>
+      </div>
+
+      <div className="card">
+        <h3 className="text-sm font-semibold text-gold mb-2">Telegram alerts</h3>
+        {tgConn?.connected ? (
+          <p className="text-xs text-emerald-400 mb-3">
+            Connected (chat {tgConn.chat_id}) - {tgConn.is_active ? 'active' : 'paused'}
+          </p>
+        ) : (
+          <p className="text-xs text-slate-400 mb-3">
+            Connect Telegram to receive every BUY/SELL signal and TP/SL update automatically.
+          </p>
+        )}
+        {!tgConn?.connected && (
+          <button className="btn-gold text-xs" onClick={connectTelegram}>
+            Connect Telegram
+          </button>
+        )}
+        {tgLink && (
+          <div className="mt-3 rounded border border-gold/20 bg-gold/5 p-3 text-xs text-slate-300">
+            <p className="mb-2">
+              Open this link in Telegram, then send <code className="text-gold">/link {tgLink.code}</code>.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <a className="btn-gold text-xs" href={tgLink.deep_link} target="_blank" rel="noreferrer">
+                Open in Telegram
+              </a>
+              <button
+                className="btn-ghost text-xs"
+                onClick={() => void navigator.clipboard?.writeText(tgLink.deep_link)}
+              >
+                Copy link
+              </button>
+            </div>
+            <p className="mt-2 text-slate-500">Code expires in {tgLink.expires_in} seconds and works once.</p>
+          </div>
+        )}
+        {tgConn?.connected && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <label className="text-xs text-slate-400">
+              Minimum grade
+              <select
+                className="input mt-1 w-full"
+                value={tgGrade}
+                onChange={(e) => setTgGrade(e.target.value)}
+              >
+                {['A+', 'A', 'B', 'C'].map((g) => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </label>
+            <label className="text-xs text-slate-400">
+              Language
+              <select
+                className="input mt-1 w-full"
+                value={tgLang}
+                onChange={(e) => setTgLang(e.target.value)}
+              >
+                <option value="en">English</option>
+                <option value="km">Khmer</option>
+              </select>
+            </label>
+            <div className="text-xs text-slate-400">
+              Timeframes
+              <div className="mt-1 flex flex-wrap gap-3">
+                {['15m', '1h', '4h', '1D'].map((tf) => (
+                  <label key={tf} className="flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      className="accent-gold"
+                      checked={tgTimeframes.includes(tf)}
+                      onChange={() => setTgTimeframes((current) =>
+                        current.includes(tf)
+                          ? current.filter((item) => item !== tf)
+                          : [...current, tf],
+                      )}
+                    />
+                    {tf}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 sm:col-span-3">
+              <button className="btn-gold text-xs" onClick={saveTelegram}>Save preferences</button>
+              <button className="btn-ghost text-xs" onClick={testTelegram}>Send test message</button>
+            </div>
+          </div>
+        )}
+        {tgMsg && <p className="mt-2 text-xs text-gold">{tgMsg}</p>}
+        <p className="mt-2 text-[11px] text-slate-500">
+          You can also change these any time in Telegram with /settings.
+        </p>
       </div>
 
       <div className="card border-amber-500/20 bg-amber-500/5">

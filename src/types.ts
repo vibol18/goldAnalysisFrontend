@@ -437,3 +437,14 @@ export interface CalendarResponse {
   checked_at: string;
   disclaimer: string;
 }
+
+export interface AuthUser {
+  id: number;
+  email: string;
+  username: string;
+  role: 'user' | 'admin';
+  is_active: boolean;
+  email_verified: boolean;
+  totp_enabled: boolean;
+  created_at: string;
+}
