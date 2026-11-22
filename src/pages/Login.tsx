@@ -28,12 +28,15 @@ export default function Login() {
   }
 
   return (
-    <section className="mx-auto max-w-md space-y-4 py-8">
+    <section className="mx-auto max-w-md space-y-5 py-12">
       <Disclaimer className="text-center" />
-      <div className="card space-y-4">
+      <div className="card space-y-5 !p-6 shadow-2xl shadow-black/30">
+        <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-gold/20 bg-gold/10 text-xl text-gold">
+          ◆
+        </div>
         <div>
-          <h1 className="text-xl font-bold text-white">GoldSight</h1>
-          <p className="text-xs text-slate-400">
+          <h1 className="text-center text-2xl font-black text-white">Meas Pro</h1>
+          <p className="mt-1 text-center text-xs text-slate-400">
             {mode === 'login' ? 'Sign in to your account' : 'Create an account'}
           </p>
         </div>

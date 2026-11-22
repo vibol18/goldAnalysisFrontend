@@ -27,7 +27,7 @@ export default function Settings() {
 
   const [tgConn, setTgConn] = useState<TelegramConnection | null>(null);
   const [tgLink, setTgLink] = useState<TelegramLinkCode | null>(null);
-  const [tgGrade, setTgGrade] = useState('A');
+  const [tgGrade, setTgGrade] = useState('C');
   const [tgLang, setTgLang] = useState('en');
   const [tgTimeframes, setTgTimeframes] = useState<string[]>(['15m', '1h', '4h']);
   const [tgMsg, setTgMsg] = useState<string | null>(null);
@@ -41,6 +41,8 @@ export default function Settings() {
       setTgConn(conn);
       if (conn.connected) {
         setTgLang(conn.language);
+        setTgGrade(conn.min_grade || 'C');
+        if (conn.timeframes?.length) setTgTimeframes(conn.timeframes);
       }
     }).catch(() => setTgConn(null));
   }, []);

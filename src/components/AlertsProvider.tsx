@@ -110,7 +110,7 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
   const notify = useCallback((alert: Alert) => {
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
     try {
-      new Notification(`GoldSight ${alert.type.toUpperCase()} · ${alert.timeframe}`, {
+      new Notification(`Meas Pro ${alert.type.toUpperCase()} · ${alert.timeframe}`, {
         body: alert.message,
       });
     } catch {

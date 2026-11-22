@@ -1,4 +1,4 @@
-/** Shared API types for GoldSight frontend (strict TS). */
+/** Shared API types for the Meas Pro frontend (strict TS). */
 
 export interface Concept {
   type: string;
@@ -63,7 +63,17 @@ export interface Explanation {
   confluence?: ConfluenceResult;
   agreeing?: string[];
   disagreeing?: string[];
+  checklist?: Array<{
+    type: string;
+    label: string;
+    agree: boolean;
+    weight: number;
+    detail: string;
+    category: string;
+  }>;
+  why_not_trading?: string | null;
   trade_plan?: {
+    direction?: string;
     entry_zone: number[] | null;
     stop_loss: number | null;
     take_profit1: number | null;
@@ -82,6 +92,12 @@ export interface RuleComponent {
 
 export interface Signal {
   id?: number;
+  legacy_data?: boolean;
+  data_source?: string | null;
+  broker_symbol?: string | null;
+  bid?: number | null;
+  ask?: number | null;
+  spread?: number | null;
   action: 'BUY' | 'SELL' | 'HOLD' | null;
   error?: string | null;
   confidence: number;
@@ -93,6 +109,8 @@ export interface Signal {
   take_profit1: number;
   take_profit2: number;
   risk_reward: number;
+  risk_reward_tp1?: number;
+  risk_reward_tp2?: number;
   atr: number;
   price: number;
   timeframe: string;
@@ -136,6 +154,9 @@ export interface CandlesResponse {
   timeframe: string;
   stale: boolean;
   synthetic: boolean;
+  source?: string | null;
+  source_status?: 'LIVE' | 'STALE' | 'APPROXIMATE';
+  price_side?: 'bid' | 'ask' | 'mid';
   error: string | null;
   candles: {
     time: number[];
@@ -149,6 +170,60 @@ export interface CandlesResponse {
   panes: Record<string, (number | null)[]>;
   levels: { support: number | null; resistance: number | null };
   markers: ChartMarker[];
+}
+
+export interface CandleCheckResponse {
+  timeframe: string;
+  meta: {
+    source: string;
+    broker: string | null;
+    server: string | null;
+    symbol: string;
+    digits: number | null;
+    timezone_offset_seconds: number | null;
+    storage_timezone: string;
+    display_timezone: string;
+    higher_timeframe_build: string;
+    price_side: string;
+    status: 'LIVE' | 'STALE' | 'APPROXIMATE';
+  };
+  missing_bars: string[];
+  candles: Array<{
+    utc: string;
+    local: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  }>;
+  disclaimer: string;
+}
+
+export interface TradingViewComparisonResponse {
+  timeframe: string;
+  detected_reference_timeframe: string;
+  source: string | null;
+  source_status: 'LIVE' | 'STALE' | 'APPROXIMATE';
+  price_side: 'bid' | 'ask' | 'mid';
+  matched: number;
+  metrics: Record<string, {
+    average: number;
+    median: number;
+    maximum: number;
+  }>;
+  within_20cents: number;
+  worst: Array<{
+    time: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    reference_close: number;
+    max_difference: number;
+  }>;
+  differences: Array<{ time: string; close_diff: number }>;
+  diagnosis: { likely_cause: string; suggestion: string };
 }
 
 export interface CorrelationInfo {

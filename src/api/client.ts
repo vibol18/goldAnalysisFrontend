@@ -1,4 +1,4 @@
-/** Typed fetch helpers for the GoldSight API. */
+/** Typed fetch helpers for the Meas Pro API. */
 import type {
   AppSettings,
   AuthUser,
@@ -6,6 +6,7 @@ import type {
   CalendarEvent,
   CalendarResponse,
   CandlesResponse,
+  CandleCheckResponse,
   ChartAnnotationsResponse,
   ChartMode,
   ConceptBacktestResponse,
@@ -18,6 +19,7 @@ import type {
   Signal,
   SignalStats,
   StatsResults,
+  TradingViewComparisonResponse,
 } from '../types';
 import { apiUrl } from '../config';
 
@@ -38,7 +40,9 @@ export function csrfToken(): string {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const method = (init?.method ?? 'GET').toUpperCase();
   const headers = new Headers(init?.headers ?? {});
-  headers.set('Content-Type', 'application/json');
+  if (!(init?.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
     headers.set('X-CSRF-Token', csrfToken());
   }
@@ -105,6 +109,8 @@ export interface TelegramConnection {
   chat_id: number | null;
   language: string;
   is_active: boolean;
+  min_grade: string;
+  timeframes: string[];
 }
 
 export interface TelegramLinkCode {
@@ -116,10 +122,36 @@ export interface TelegramLinkCode {
 export const api = {
   overview: () => request<Overview>('/api/market/overview'),
 
+  livePrice: () => request<{
+    state: string;
+    source: string;
+    bid: number | null;
+    ask: number | null;
+    spread: number | null;
+    price: number | null;
+    time: string | null;
+    age_seconds: number | null;
+    verification?: { state: string; message?: string };
+  }>('/api/market/live'),
+
   candles: (timeframe: string) =>
     request<CandlesResponse>(
       `/api/market/candles?timeframe=${encodeURIComponent(timeframe)}`,
     ),
+
+  candleCheck: (timeframe: string) =>
+    request<CandleCheckResponse>(
+      `/api/market/candle-check?timeframe=${encodeURIComponent(timeframe)}`,
+    ),
+
+  compareTradingView: (timeframe: string, file: File) => {
+    const body = new FormData();
+    body.append('file', file);
+    return request<TradingViewComparisonResponse>(
+      `/api/market/compare-tradingview?timeframe=${encodeURIComponent(timeframe)}`,
+      { method: 'POST', body },
+    );
+  },
 
   currentSignal: (timeframe: string) =>
     request<Signal>(

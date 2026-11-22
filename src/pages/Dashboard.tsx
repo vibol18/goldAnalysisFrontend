@@ -79,10 +79,21 @@ export default function Dashboard() {
     signals: true,
   });
 
-  const [liveTick, setLiveTick] = useState<{ price: number; change_pct: number; time: string } | null>(null);
+  const [liveTick, setLiveTick] = useState<{
+    price: number;
+    change_pct: number;
+    time: string;
+    bid?: number;
+    ask?: number;
+    spread?: number;
+    source?: string;
+  } | null>(null);
   const [liveMacro, setLiveMacro] = useState<Overview['correlations'] | null>(null);
   const [liveNews, setLiveNews] = useState<NewsResponse | null>(null);
   const [liveSignal, setLiveSignal] = useState<Signal | null>(null);
+  const [liveResult, setLiveResult] = useState<{
+    id: number; status: string; hit: string | null; result_pct: number | null;
+  } | null>(null);
   const [annotations, setAnnotations] = useState<ChartAnnotation[]>([]);
   const [markers, setMarkers] = useState<SignalMarker[]>([]);
   const [detail, setDetail] = useState<Signal | null>(null);
@@ -103,6 +114,10 @@ export default function Dashboard() {
     () => api.chartAnnotations(timeframe, showAll, mode), 0, [timeframe, showAll, mode],
   );
   const calendar = usePolling<CalendarResponse>(() => api.calendar(), 60_000, []);
+  const livePrice = usePolling<{
+    state?: string; source?: string; bid?: number | null; ask?: number | null;
+    verification?: { state?: string; max_difference_usd?: number; tolerance_usd?: number };
+  }>(() => api.livePrice(), 5_000, []);
   const dailyRisk = usePolling<{
     warning: string; breached: boolean; near_limit: boolean;
     realised_pct: number; limit_pct: number;
@@ -120,6 +135,7 @@ export default function Dashboard() {
     setLiveTick(null);
     setLiveMacro(null);
     setLiveSignal(null);
+    setLiveResult(null);
     lastPrice.current = null;
   }, [timeframe, setLiveTimeframe]);
 
@@ -154,6 +170,10 @@ export default function Dashboard() {
             price,
             change_pct: Number(event.change_pct) || 0,
             time: String(event.time ?? ''),
+            bid: typeof event.bid === 'number' ? event.bid : undefined,
+            ask: typeof event.ask === 'number' ? event.ask : undefined,
+            spread: typeof event.spread === 'number' ? event.spread : undefined,
+            source: typeof event.source === 'string' ? event.source : undefined,
           });
         }
         break;
@@ -190,12 +210,20 @@ export default function Dashboard() {
       }
       case 'signal_result': {
         const id = Number(event.id);
+        const status = String(event.status ?? '');
+        const hit = (event.hit as string | null) ?? null;
+        const resultPct = event.result_pct == null ? null : Number(event.result_pct);
         setMarkers((prev) => prev.map((m) => m.id === id ? {
           ...m,
-          status: String(event.status ?? m.status) as SignalMarker['status'],
-          hit: (event.hit as string | null) ?? null,
-          result_pct: event.result_pct == null ? m.result_pct : Number(event.result_pct),
+          status: (status || m.status) as SignalMarker['status'],
+          hit: hit ?? null,
+          result_pct: resultPct ?? m.result_pct,
         } : m));
+        setLiveResult({ id, status, hit, result_pct: resultPct });
+        setLiveSignal((prev) => prev && prev.id === id ? {
+          ...prev, status: status || prev.status, hit: hit ?? null,
+          result_pct: resultPct ?? prev.result_pct,
+        } : prev);
         break;
       }
       case 'macro':
@@ -256,7 +284,16 @@ export default function Dashboard() {
     }));
   };
 
-  const currentSignal = liveSignal ?? signal.data;
+  const baseSignal = liveSignal ?? signal.data;
+  const currentSignal = baseSignal && liveResult &&
+    (liveResult.id === baseSignal.id || baseSignal.id == null)
+    ? {
+        ...baseSignal,
+        status: liveResult.status || baseSignal.status,
+        hit: liveResult.hit ?? baseSignal.hit,
+        result_pct: liveResult.result_pct ?? baseSignal.result_pct,
+      }
+    : baseSignal;
   const newsData = liveNews ?? news.data;
 
   const openMarker = useCallback((marker: SignalMarker) => {
@@ -332,6 +369,20 @@ export default function Dashboard() {
               {secondsAgo}s ago
             </span>
           )}
+          {liveTick?.source && (
+            <span className="rounded border border-white/[0.08] px-1.5 py-0.5 text-[10px] text-slate-400">
+              {liveTick.source === 'mt5'
+                ? 'MT5 LIVE'
+                : liveTick.source === 'rest'
+                  ? 'SPOT REST LIVE'
+                  : liveTick.source.toUpperCase()}
+            </span>
+          )}
+          {liveTick?.bid !== undefined && liveTick?.ask !== undefined && (
+            <span className="text-[10px] text-slate-500">
+              Bid {liveTick.bid.toFixed(2)} · Ask {liveTick.ask.toFixed(2)}
+            </span>
+          )}
         </div>
         <div className="flex gap-5 text-xs">
           <div>
@@ -358,6 +409,18 @@ export default function Dashboard() {
       {staleNote && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
           ⚠ {staleNote}
+        </div>
+      )}
+
+      {livePrice.data?.verification?.state === 'UNVERIFIED' && (
+        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+          ⚠ UNVERIFIED price: sources differ by ${livePrice.data.verification.max_difference_usd?.toFixed(2)}
+          {' '}(tolerance ${livePrice.data.verification.tolerance_usd?.toFixed(2)}). New signals are paused.
+        </div>
+      )}
+      {livePrice.data?.source && livePrice.data.source !== 'mt5' && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+          MT5 bridge offline — using {livePrice.data.source} as an APPROXIMATE fallback.
         </div>
       )}
 
@@ -407,8 +470,8 @@ export default function Dashboard() {
             key === 'DXY' ? 'US Dollar (DXY)' : key === 'US10Y' ? 'US 10Y Yield' : 'S&P 500';
           const inverse = key !== 'SPX';
           return (
-            <div key={key} className="card">
-              <div className="">
+            <div key={key} className="card !p-3.5">
+              <div className="flex items-center justify-between">
                 <span className="label">{label}</span>
                 <span
                   className={`text-xs font-semibold ${chg >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
@@ -442,8 +505,8 @@ export default function Dashboard() {
       </div>
 
       {/* chart card */}
-      <div className="card">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+      <div className="card overflow-hidden !p-0">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.05] px-4 py-3">
           <div className="flex gap-1">
             {TIMEFRAMES.map((tf) => (
               <button
@@ -476,7 +539,7 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5 mb-2">
+        <div className="flex flex-wrap items-center gap-1.5 px-4 pt-3">
           <span className="text-[10px] uppercase tracking-wide text-slate-500 mr-1">
             Mode
           </span>

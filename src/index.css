@@ -13,30 +13,48 @@ body,
 }
 
 body {
-  @apply bg-[#0b0d12] text-slate-200 antialiased;
+  @apply text-slate-200 antialiased;
+  background:
+    radial-gradient(circle at 78% -10%, rgba(245, 197, 24, 0.055), transparent 28rem),
+    radial-gradient(circle at 12% 30%, rgba(59, 130, 246, 0.025), transparent 30rem),
+    #090b10;
   font-family: Inter, system-ui, 'Segoe UI', sans-serif;
 }
 
 @layer components {
   .card {
-    @apply bg-surface-raised border border-white/5 rounded-xl p-4 shadow-lg shadow-black/20;
+    @apply border border-white/[0.07] rounded-2xl p-4;
+    background: linear-gradient(145deg, rgba(27, 30, 40, 0.94), rgba(18, 20, 27, 0.96));
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.018);
   }
   .btn {
-    @apply inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-150;
   }
   .btn-ghost {
-    @apply btn bg-white/5 hover:bg-white/10 text-slate-300;
+    @apply btn border border-transparent text-slate-400 hover:border-white/[0.07] hover:bg-white/[0.055] hover:text-slate-100;
   }
   .btn-gold {
-    @apply btn bg-gold/90 hover:bg-gold text-black font-semibold;
+    @apply btn bg-gold/90 hover:bg-gold text-black font-semibold shadow-lg shadow-gold/10;
+  }
+  .btn-active {
+    @apply btn border border-gold/25 bg-gold/10 text-gold shadow-sm;
   }
   .input {
-    @apply w-full rounded-lg bg-black/30 border border-white/10 px-3 py-2 text-sm
-      focus:outline-none focus:ring-1 focus:ring-gold/60 placeholder:text-slate-500;
+    @apply w-full rounded-xl bg-black/25 border border-white/[0.08] px-3 py-2.5 text-sm
+      focus:outline-none focus:border-gold/40 focus:ring-2 focus:ring-gold/10 placeholder:text-slate-600;
   }
   .label {
-    @apply block text-xs uppercase tracking-wide text-slate-400 mb-1;
+    @apply block text-[10px] uppercase tracking-[0.16em] text-slate-500 mb-1.5;
   }
+}
+
+.page-enter {
+  animation: page-enter 180ms ease-out both;
+}
+
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* thin scrollbars */

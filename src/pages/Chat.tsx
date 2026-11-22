@@ -184,7 +184,7 @@ export default function Chat() {
                 }`}
               >
                 <span className="block text-[9px] uppercase tracking-wider text-slate-500 mb-1">
-                  {m.role === 'user' ? 'You' : 'GoldSight AI'}
+                  {m.role === 'user' ? 'You' : 'Meas Pro AI'}
                 </span>
                 {m.content || (lastAssistantEmpty && i === messages.length - 1 ? 'Thinking…' : '')}
                 {streaming && i === messages.length - 1 && m.role === 'assistant' && (

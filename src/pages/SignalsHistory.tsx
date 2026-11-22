@@ -145,6 +145,14 @@ export default function SignalsHistory() {
     return action === 'ALL' ? rows : rows.filter((s) => s.action === action);
   }, [data, action]);
 
+  const directionCounts = useMemo(() => {
+    const rows = data?.signals ?? [];
+    return {
+      BUY: rows.filter((s) => s.action === 'BUY').length,
+      SELL: rows.filter((s) => s.action === 'SELL').length,
+    };
+  }, [data]);
+
   const stats: SignalStats | undefined = data?.stats;
 
   return (
@@ -170,10 +178,18 @@ export default function SignalsHistory() {
       </div>
 
       {/* accuracy summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         <div className="card">
           <span className="label">Signals</span>
           <span className="text-xl font-bold text-white">{stats?.total ?? 0}</span>
+        </div>
+        <div className="card">
+          <span className="label">BUY</span>
+          <span className="text-xl font-bold text-emerald-400">{directionCounts.BUY}</span>
+        </div>
+        <div className="card">
+          <span className="label">SELL</span>
+          <span className="text-xl font-bold text-red-400">{directionCounts.SELL}</span>
         </div>
         <div className="card">
           <span className="label">Closed</span>

@@ -168,7 +168,7 @@ export function LiveStreamProvider({ children }: { children: ReactNode }): JSX.E
     ws.onmessage = null;
     ws.onerror = null;
     ws.onclose = null;
-    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+    if (ws.readyState === WebSocket.OPEN) {
       try {
         ws.close();
       } catch {
